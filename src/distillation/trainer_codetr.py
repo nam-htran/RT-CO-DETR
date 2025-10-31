@@ -58,7 +58,7 @@ class DETRTeacherWrapper(nn.Module):
         b, _, h, w = pixel_values.shape
         pixel_mask = torch.ones((b, h, w), device=pixel_values.device, dtype=torch.bool)
         backbone_output = self._model.model.backbone(pixel_values, pixel_mask)
-        return list(backbone_output)
+        return list(backbone_output.values())
 
     def forward_preds(self, pixel_values: torch.Tensor) -> dict:
         outputs = self._model(pixel_values=pixel_values)
@@ -100,10 +100,7 @@ def main_training_function(rank, world_size, cfg):
     student_hub = torch.hub.load(str(project_config.RTDETR_SOURCE_DIR), "rtdetrv2_l", source='local', pretrained=True, trust_repo=True)
     student_model = student_hub.model.to(device)
     
-    # --- PHẦN ĐÃ SỬA LỖI ---
     student_channels = [256, 256, 256] 
-    # -------------------------
-    
     projection_layers = nn.ModuleList([
         nn.Conv2d(sc, tc, kernel_size=1) for sc, tc in zip(student_channels, teacher_model.feature_dims)
     ]).to(device)
