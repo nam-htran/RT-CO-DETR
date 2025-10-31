@@ -1,4 +1,4 @@
-# ===== src/distillation/trainer_codetr.py (Corrected Version 2) =====
+# ===== src/distillation/trainer_codetr.py (Corrected Version) =====
 import os
 import sys
 
@@ -58,16 +58,23 @@ class DETRTeacherWrapper(nn.Module):
         b, _, h, w = pixel_values.shape
         pixel_mask = torch.ones((b, h, w), device=pixel_values.device, dtype=torch.bool)
         backbone_output = self._model.model.backbone(pixel_values, pixel_mask)
+
+        # FIX: The backbone returns a tuple (features, pos_embeds). The 'features'
+        # element is itself a tuple of feature tensors from different stages.
+        features_tuple = backbone_output[0]
+
+        # The student model expects 3 feature maps. The teacher's ResNet backbone might output 4.
+        # We align them by taking the last 3, which correspond to the C3, C4, C5 stages.
+        if len(features_tuple) > 3:
+            selected_features = features_tuple[-3:]
+        else:
+            selected_features = features_tuple
         
-        # FIX: The backbone returns a tuple (features, pos_embeds).
-        # The 'features' item itself is a tuple of tensors. We extract it.
-        features = backbone_output[0]
+        # The error indicates that elements might be single-item tuples (tensor,).
+        # We ensure a list of pure tensors is returned.
+        unpacked_features = [feat[0] if isinstance(feat, tuple) else feat for feat in selected_features]
         
-        # The student model expects 3 feature maps. DETR's ResNet backbone outputs
-        # features from stages C3, C4, C5. We select the last 3 features to match.
-        if len(features) > 3:
-            return list(features[-3:])
-        return list(features)
+        return unpacked_features
 
     def forward_preds(self, pixel_values: torch.Tensor) -> dict:
         outputs = self._model(pixel_values=pixel_values)
