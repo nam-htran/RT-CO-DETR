@@ -1,5 +1,13 @@
-# ===== src/distillation/trainer_detr.py (Definitive Final Version) =====
+# ===== src/distillation/trainer_codetr.py (Definitive Final Version) =====
 import os
+import sys
+
+# --- CRITICAL FIX for DDP on Windows/Kaggle ---
+# This MUST be set before importing torch.
+if sys.platform == 'win32' or 'KAGGLE_KERNEL_RUN_TYPE' in os.environ:
+    os.environ['USE_LIBUV'] = '0'
+# --------------------------------------------
+
 import time
 import torch
 import torch.nn as nn
@@ -14,73 +22,60 @@ import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data.distributed import DistributedSampler
 from pathlib import Path
-import sys
-
-# Correct, robust import from the transformers library
 from transformers import AutoModelForObjectDetection
 
-# Add project root to sys.path to resolve local imports
 sys.path.append(str(Path(__file__).resolve().parent.parent.parent))
 import config as project_config
 from src.distillation.dataset import CocoDetectionForDistill
 
 def _setup_ddp_if_needed():
-    """Initializes DDP if environment variables are set."""
-    if "WORLD_SIZE" in os.environ and int(os.environ["WORLD_SIZE"]) > 1:
+    """Initializes the DDP process group if called by torchrun."""
+    if dist.is_available() and "WORLD_SIZE" in os.environ and int(os.environ["WORLD_SIZE"]) > 1:
         backend = 'gloo' if sys.platform == 'win32' else 'nccl'
         dist.init_process_group(backend=backend)
         torch.cuda.set_device(int(os.environ["LOCAL_RANK"]))
-        return int(os.environ["RANK"]), int(os.environ["WORLD_SIZE"])
+        rank = int(os.environ["RANK"])
+        world_size = int(os.environ["WORLD_SIZE"])
+        print(f"DDP Initialized on Rank {rank}/{world_size} with '{backend}' backend.")
+        return rank, world_size
+    print("INFO: DDP environment not detected. Running in single-process mode.")
     return 0, 1
 
 def _cleanup_ddp():
-    """Cleans up the DDP process group."""
     if dist.is_initialized():
         dist.destroy_process_group()
 
 class DETRTeacherWrapper(nn.Module):
-    """
-    This wrapper correctly loads a DETR-family model from the Hugging Face Hub.
-    Uses the verified 'microsoft/conditional-detr-resnet-50' model ID.
-    """
+    """Wrapper for the Conditional-DETR teacher model."""
     def __init__(self, model_name: str = "microsoft/conditional-detr-resnet-50"):
         super().__init__()
         rank = int(os.environ.get("RANK", 0))
         if rank == 0:
             print(f"Loading teacher model '{model_name}' from Hugging Face Hub...")
-
-        hf_token = os.getenv("HUGGINGFACE_TOKEN")
-        # This will download and cache the model specified by the correct ID
-        self._model = AutoModelForObjectDetection.from_pretrained(model_name, token=hf_token)
         
-        # Standard feature dimensions for a ResNet-50 backbone
+        self._model = AutoModelForObjectDetection.from_pretrained(model_name)
         self.feature_dims = [512, 1024, 2048]
 
     def forward_features(self, pixel_values: torch.Tensor) -> list[torch.Tensor]:
-        """Extracts multi-scale features from the model's backbone."""
         backbone_output = self._model.model.backbone(pixel_values, output_hidden_states=True)
-        # Return feature maps from stages 2, 3, and 4 (strides 8, 16, 32)
         return [backbone_output.hidden_states[i] for i in [1, 2, 3]]
 
     def forward_preds(self, pixel_values: torch.Tensor) -> dict:
-        """Performs a full forward pass to get final predictions."""
         outputs = self._model(pixel_values=pixel_values)
         return {'pred_logits': outputs.logits, 'pred_boxes': outputs.pred_boxes}
 
 def main_training_function(rank, world_size, cfg):
-    device = rank
+    device = torch.device(f"cuda:{rank}")
     is_main_process = (rank == 0)
 
     if is_main_process:
         timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M")
         run_name = f"distill_conditional_detr_{timestamp}"
         try:
-            wandb_api_key = os.getenv("WANDB_API_KEY")
-            if wandb_api_key:
-                wandb.login(key=wandb_api_key)
-                wandb.init(project=cfg["wandb_project"], config=cfg, name=run_name)
+            wandb.login(key=os.getenv("WANDB_API_KEY"))
+            wandb.init(project=cfg["wandb_project"], config=cfg, name=run_name)
         except Exception as e:
-            print(f"W&B login failed: {e}. No remote logging will be performed.")
+            print(f"W&B login failed: {e}. No remote logging.")
         Path(cfg["best_weights_filename"]).parent.mkdir(parents=True, exist_ok=True)
     
     if world_size > 1: dist.barrier()
@@ -97,13 +92,12 @@ def main_training_function(rank, world_size, cfg):
     
     student_channels = [512, 1024, 2048]
     projection_layers = nn.ModuleList([
-        nn.Conv2d(student_channels[i], teacher_model.feature_dims[i], kernel_size=1) 
-        for i in range(len(student_channels))
+        nn.Conv2d(sc, tc, kernel_size=1) for sc, tc in zip(student_channels, teacher_model.feature_dims)
     ]).to(device)
     
     if world_size > 1:
-        student_model = DDP(student_model, device_ids=[device], find_unused_parameters=True)
-        projection_layers = DDP(projection_layers, device_ids=[device], find_unused_parameters=True)
+        student_model = DDP(student_model, device_ids=[rank], find_unused_parameters=True)
+        projection_layers = DDP(projection_layers, device_ids=[rank], find_unused_parameters=True)
 
     data_transforms = T.Compose([T.Resize((640, 640)), T.ToTensor(), T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])])
     train_dataset = CocoDetectionForDistill(cfg["train_images_dir"], cfg["train_ann_file"], data_transforms)
@@ -225,8 +219,8 @@ if __name__ == "__main__":
             "train_ann_file": str(project_config.COCO_TRAIN_ANNOTATIONS), "val_ann_file": str(project_config.COCO_VAL_ANNOTATIONS),
             "scheduler_patience": 5, "scheduler_factor": 0.2, "early_stopping_patience": 12,
             "distill_temperature": 4.0, "loss_weights": {"feat": 1.0, "cls": 0.8, "box": 1.2},
-            "best_weights_filename": str(project_config.CODETR_BEST_WEIGHTS), # Should rename this path later
-            "wandb_project": "Distill-RTDETR-ConditionalDETR",
+            "best_weights_filename": str(project_config.DISTILLED_BEST_WEIGHTS),
+            "wandb_project": project_config.WANDB_PROJECT_DISTILL,
         }
         main_training_function(rank, world_size, cfg)
     finally:
