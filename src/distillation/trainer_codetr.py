@@ -1,4 +1,4 @@
-# ===== src/distillation/trainer_codetr.py (Corrected Version) =====
+# ===== src/distillation/trainer_codetr.py (Corrected Version 3) =====
 import os
 import sys
 
@@ -58,22 +58,15 @@ class DETRTeacherWrapper(nn.Module):
         b, _, h, w = pixel_values.shape
         pixel_mask = torch.ones((b, h, w), device=pixel_values.device, dtype=torch.bool)
         backbone_output = self._model.model.backbone(pixel_values, pixel_mask)
-
-        # FIX: The backbone returns a tuple (features, pos_embeds). The 'features'
-        # element is itself a tuple of feature tensors from different stages.
+        
         features_tuple = backbone_output[0]
-
-        # The student model expects 3 feature maps. The teacher's ResNet backbone might output 4.
-        # We align them by taking the last 3, which correspond to the C3, C4, C5 stages.
+        
         if len(features_tuple) > 3:
             selected_features = features_tuple[-3:]
         else:
             selected_features = features_tuple
         
-        # The error indicates that elements might be single-item tuples (tensor,).
-        # We ensure a list of pure tensors is returned.
         unpacked_features = [feat[0] if isinstance(feat, tuple) else feat for feat in selected_features]
-        
         return unpacked_features
 
     def forward_preds(self, pixel_values: torch.Tensor) -> dict:
@@ -171,8 +164,26 @@ def main_training_function(rank, world_size, cfg):
 
             loss_feat = sum(mse_loss_fn(projection_module[i](student_features[i]), F.interpolate(teacher_features[i], size=student_features[i].shape[-2:], mode="bilinear", align_corners=False)) for i in range(len(student_features)))
             
+            # --- FIX: Align the number of classes for KL Divergence Loss ---
+            student_logits = student_preds['pred_logits']
+            teacher_logits = teacher_preds['pred_logits']
+            
+            # Get the number of classes from the smaller of the two logits tensors
+            num_classes_student = student_logits.shape[-1]
+            num_classes_teacher = teacher_logits.shape[-1]
+            num_classes_to_distill = min(num_classes_student, num_classes_teacher)
+            
+            # Slice both logits to the same size
+            student_logits_sliced = student_logits[..., :num_classes_to_distill]
+            teacher_logits_sliced = teacher_logits[..., :num_classes_to_distill]
+
             temperature = cfg['distill_temperature']
-            loss_cls = kld_loss_fn(F.log_softmax(student_preds['pred_logits']/temperature, -1), F.softmax(teacher_preds['pred_logits']/temperature, -1)) * (temperature**2)
+            loss_cls = kld_loss_fn(
+                F.log_softmax(student_logits_sliced / temperature, dim=-1),
+                F.softmax(teacher_logits_sliced / temperature, dim=-1)
+            ) * (temperature**2)
+            # --- END FIX ---
+            
             loss_box = l1_loss_fn(student_preds['pred_boxes'], teacher_preds['pred_boxes'])
             
             total_loss = (cfg['loss_weights']['feat'] * loss_feat) + (cfg['loss_weights']['cls'] * loss_cls) + (cfg['loss_weights']['box'] * loss_box)
@@ -191,9 +202,26 @@ def main_training_function(rank, world_size, cfg):
                 student_preds = student_module(images)
                 student_features = student_module.encoder(student_module.backbone(images))
                 
-                temperature = cfg['distill_temperature']
                 loss_feat_val = sum(mse_loss_fn(projection_module[i](student_features[i]), F.interpolate(teacher_features[i], size=student_features[i].shape[-2:], mode="bilinear", align_corners=False)) for i in range(len(student_features)))
-                loss_cls_val = kld_loss_fn(F.log_softmax(student_preds['pred_logits']/temperature, -1), F.softmax(teacher_preds['pred_logits']/temperature, -1)) * (temperature**2)
+                
+                # --- FIX: Align the number of classes for KL Divergence Loss (Validation) ---
+                student_logits_val = student_preds['pred_logits']
+                teacher_logits_val = teacher_preds['pred_logits']
+                
+                num_classes_student_val = student_logits_val.shape[-1]
+                num_classes_teacher_val = teacher_logits_val.shape[-1]
+                num_classes_to_distill_val = min(num_classes_student_val, num_classes_teacher_val)
+
+                student_logits_sliced_val = student_logits_val[..., :num_classes_to_distill_val]
+                teacher_logits_sliced_val = teacher_logits_val[..., :num_classes_to_distill_val]
+
+                temperature = cfg['distill_temperature']
+                loss_cls_val = kld_loss_fn(
+                    F.log_softmax(student_logits_sliced_val / temperature, dim=-1),
+                    F.softmax(teacher_logits_sliced_val / temperature, dim=-1)
+                ) * (temperature**2)
+                # --- END FIX ---
+
                 loss_box_val = l1_loss_fn(student_preds['pred_boxes'], teacher_preds['pred_boxes'])
                 total_loss_val = (cfg['loss_weights']['feat'] * loss_feat_val) + (cfg['loss_weights']['cls'] * loss_cls_val) + (cfg['loss_weights']['box'] * loss_box_val)
                 total_val_loss += total_loss_val.item()
