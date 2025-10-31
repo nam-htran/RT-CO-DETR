@@ -2,7 +2,7 @@
 import os
 import sys
 
-# --- CRITICAL FIX for DDP on Windows/Kaggle ---
+# --- CRITICAL FIX for DDP on Windows/Kagge ---
 if sys.platform == 'win32' or 'KAGGLE_KERNEL_RUN_TYPE' in os.environ:
     os.environ['USE_LIBUV'] = '0'
 # -----------------------------------------------
@@ -14,7 +14,7 @@ import torch.nn.functional as F
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import DataLoader
 
-# --- THIS IS THE FIX ---
+# --- ĐÂY LÀ DÒNG SỬA LỖI ---
 from torchvision import transforms as T
 # -----------------------
 
