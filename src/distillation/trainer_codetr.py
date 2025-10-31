@@ -58,7 +58,7 @@ class DETRTeacherWrapper(nn.Module):
         b, _, h, w = pixel_values.shape
         pixel_mask = torch.ones((b, h, w), device=pixel_values.device, dtype=torch.bool)
         # Backbone của Hugging Face DETR trả về một tuple (features, pos_encodings).
-        # Chúng ta chỉ cần lấy features ở vị trí đầu tiên [0].
+        # Chúng ta chỉ cần lấy list các features ở vị trí đầu tiên [0].
         backbone_output = self._model.model.backbone(pixel_values, pixel_mask)
         return backbone_output[0]
 
