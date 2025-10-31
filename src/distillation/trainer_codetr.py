@@ -1,4 +1,4 @@
-# ===== src/distillation/trainer_codetr.py (Definitive Final Version) =====
+# ===== src/distillation/trainer_codetr.py (Sửa lỗi TypeError) =====
 import os
 import sys
 
@@ -55,9 +55,14 @@ class DETRTeacherWrapper(nn.Module):
         self._model = AutoModelForObjectDetection.from_pretrained(model_name)
         self.feature_dims = [512, 1024, 2048]
 
+    # --- PHẦN ĐÃ SỬA LỖI ---
     def forward_features(self, pixel_values: torch.Tensor) -> list[torch.Tensor]:
-        backbone_output = self._model.model.backbone(pixel_values, output_hidden_states=True)
-        return [backbone_output.hidden_states[i] for i in [1, 2, 3]]
+        # Backbone của DETR không nhận tham số `output_hidden_states`.
+        # Nó trả về một đối tượng `BackboneOutput` (giống dict).
+        backbone_output = self._model.model.backbone(pixel_values)
+        # Các feature map nằm trong key 'feature_maps'.
+        return backbone_output['feature_maps']
+    # -------------------------
 
     def forward_preds(self, pixel_values: torch.Tensor) -> dict:
         outputs = self._model(pixel_values=pixel_values)
