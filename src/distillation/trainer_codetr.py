@@ -1,4 +1,3 @@
-# ===== src/distillation/trainer_codetr.py (Sửa lỗi cuối cùng: Lấy đúng feature map) =====
 import os
 import sys
 
