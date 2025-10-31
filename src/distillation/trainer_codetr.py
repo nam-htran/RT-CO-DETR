@@ -55,14 +55,9 @@ class DETRTeacherWrapper(nn.Module):
         self.feature_dims = [512, 1024, 2048]
 
     def forward_features(self, pixel_values: torch.Tensor) -> list[torch.Tensor]:
-        # Tạo pixel_mask vì backbone yêu cầu. Giả định không có padding.
         b, _, h, w = pixel_values.shape
         pixel_mask = torch.ones((b, h, w), device=pixel_values.device, dtype=torch.bool)
-        
-        # Gọi backbone với cả pixel_values và pixel_mask
         backbone_output = self._model.model.backbone(pixel_values, pixel_mask)
-        
-        # Backbone trả về một tuple các feature map, chúng ta chuyển nó thành list
         return list(backbone_output)
 
     def forward_preds(self, pixel_values: torch.Tensor) -> dict:
