@@ -1,10 +1,10 @@
+# ===== src/distillation/trainer_codetr.py (Corrected Version) =====
 import os
 import sys
 
-# --- CRITICAL FIX for DDP on Windows/Kaggle ---
+# DDP Hotfix for Windows/Kaggle environments
 if sys.platform == 'win32' or 'KAGGLE_KERNEL_RUN_TYPE' in os.environ:
     os.environ['USE_LIBUV'] = '0'
-# -----------------------------------------------
 
 import time
 import torch
@@ -57,10 +57,9 @@ class DETRTeacherWrapper(nn.Module):
     def forward_features(self, pixel_values: torch.Tensor) -> list[torch.Tensor]:
         b, _, h, w = pixel_values.shape
         pixel_mask = torch.ones((b, h, w), device=pixel_values.device, dtype=torch.bool)
-        # Backbone của Hugging Face DETR trả về một tuple (features, pos_encodings).
-        # Chúng ta chỉ cần lấy tuple các features ở vị trí đầu tiên [0].
         backbone_output = self._model.model.backbone(pixel_values, pixel_mask)
-        return backbone_output[0]
+        # FIX: Directly access the .feature_maps attribute to get the list of tensors
+        return backbone_output.feature_maps
 
     def forward_preds(self, pixel_values: torch.Tensor) -> dict:
         outputs = self._model(pixel_values=pixel_values)

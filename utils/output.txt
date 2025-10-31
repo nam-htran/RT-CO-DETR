@@ -10073,11 +10073,10 @@ class HuggingFaceTeacherWrapper(nn.Module):
             return [outputs.hidden_states[i] for i in [2, 3, 4]]
 
 ===== .\src\distillation\trainer_codetr.py =====
-# ===== src/distillation/trainer_codetr.py (Definitive Final Version) =====
 import os
 import sys
 
-# --- CRITICAL FIX for DDP on Windows/Kagge ---
+# --- CRITICAL FIX for DDP on Windows/Kaggle ---
 if sys.platform == 'win32' or 'KAGGLE_KERNEL_RUN_TYPE' in os.environ:
     os.environ['USE_LIBUV'] = '0'
 # -----------------------------------------------
@@ -10088,11 +10087,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import DataLoader
-
-# --- ĐÂY LÀ DÒNG SỬA LỖI ---
 from torchvision import transforms as T
-# -----------------------
-
 from tqdm import tqdm
 import wandb
 import datetime
@@ -10135,8 +10130,12 @@ class DETRTeacherWrapper(nn.Module):
         self.feature_dims = [512, 1024, 2048]
 
     def forward_features(self, pixel_values: torch.Tensor) -> list[torch.Tensor]:
-        backbone_output = self._model.model.backbone(pixel_values, output_hidden_states=True)
-        return [backbone_output.hidden_states[i] for i in [1, 2, 3]]
+        b, _, h, w = pixel_values.shape
+        pixel_mask = torch.ones((b, h, w), device=pixel_values.device, dtype=torch.bool)
+        # Backbone của Hugging Face DETR trả về một tuple (features, pos_encodings).
+        # Chúng ta chỉ cần lấy tuple các features ở vị trí đầu tiên [0].
+        backbone_output = self._model.model.backbone(pixel_values, pixel_mask)
+        return backbone_output[0]
 
     def forward_preds(self, pixel_values: torch.Tensor) -> dict:
         outputs = self._model(pixel_values=pixel_values)
@@ -10178,7 +10177,7 @@ def main_training_function(rank, world_size, cfg):
     student_hub = torch.hub.load(str(project_config.RTDETR_SOURCE_DIR), "rtdetrv2_l", source='local', pretrained=True, trust_repo=True)
     student_model = student_hub.model.to(device)
     
-    student_channels = [512, 1024, 2048]
+    student_channels = [256, 256, 256] 
     projection_layers = nn.ModuleList([
         nn.Conv2d(sc, tc, kernel_size=1) for sc, tc in zip(student_channels, teacher_model.feature_dims)
     ]).to(device)
@@ -10233,8 +10232,8 @@ def main_training_function(rank, world_size, cfg):
 
             loss_feat = sum(mse_loss_fn(projection_module[i](student_features[i]), F.interpolate(teacher_features[i], size=student_features[i].shape[-2:], mode="bilinear", align_corners=False)) for i in range(len(student_features)))
             
-            T = cfg['distill_temperature']
-            loss_cls = kld_loss_fn(F.log_softmax(student_preds['pred_logits']/T, -1), F.softmax(teacher_preds['pred_logits']/T, -1)) * (T*T)
+            temperature = cfg['distill_temperature']
+            loss_cls = kld_loss_fn(F.log_softmax(student_preds['pred_logits']/temperature, -1), F.softmax(teacher_preds['pred_logits']/temperature, -1)) * (temperature**2)
             loss_box = l1_loss_fn(student_preds['pred_boxes'], teacher_preds['pred_boxes'])
             
             total_loss = (cfg['loss_weights']['feat'] * loss_feat) + (cfg['loss_weights']['cls'] * loss_cls) + (cfg['loss_weights']['box'] * loss_box)
@@ -10253,8 +10252,9 @@ def main_training_function(rank, world_size, cfg):
                 student_preds = student_module(images)
                 student_features = student_module.encoder(student_module.backbone(images))
                 
+                temperature = cfg['distill_temperature']
                 loss_feat_val = sum(mse_loss_fn(projection_module[i](student_features[i]), F.interpolate(teacher_features[i], size=student_features[i].shape[-2:], mode="bilinear", align_corners=False)) for i in range(len(student_features)))
-                loss_cls_val = kld_loss_fn(F.log_softmax(student_preds['pred_logits']/T, -1), F.softmax(teacher_preds['pred_logits']/T, -1)) * (T*T)
+                loss_cls_val = kld_loss_fn(F.log_softmax(student_preds['pred_logits']/temperature, -1), F.softmax(teacher_preds['pred_logits']/temperature, -1)) * (temperature**2)
                 loss_box_val = l1_loss_fn(student_preds['pred_boxes'], teacher_preds['pred_boxes'])
                 total_loss_val = (cfg['loss_weights']['feat'] * loss_feat_val) + (cfg['loss_weights']['cls'] * loss_cls_val) + (cfg['loss_weights']['box'] * loss_box_val)
                 total_val_loss += total_loss_val.item()
@@ -10300,8 +10300,8 @@ if __name__ == "__main__":
 
     try:
         cfg = {
-            "learning_rate": 5e-5, "epochs": 100, "batch_size_per_gpu": 8,
-            "num_workers": 2, "weight_decay": 1e-4, 
+            "learning_rate": 5e-5, "epochs": 100, "batch_size_per_gpu": 2,
+            "num_workers": 1, "weight_decay": 1e-4, 
             "teacher_model": "microsoft/conditional-detr-resnet-50",
             "train_images_dir": str(project_config.COCO_TRAIN_IMAGES), "val_images_dir": str(project_config.COCO_VAL_IMAGES),
             "train_ann_file": str(project_config.COCO_TRAIN_ANNOTATIONS), "val_ann_file": str(project_config.COCO_VAL_ANNOTATIONS),
