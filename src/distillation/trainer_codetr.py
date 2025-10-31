@@ -58,7 +58,8 @@ class DETRTeacherWrapper(nn.Module):
         b, _, h, w = pixel_values.shape
         pixel_mask = torch.ones((b, h, w), device=pixel_values.device, dtype=torch.bool)
         backbone_output = self._model.model.backbone(pixel_values, pixel_mask)
-        return list(backbone_output.values())
+        # Backbone trả về một tuple các tensor, chúng ta chuyển nó thành list
+        return list(backbone_output)
 
     def forward_preds(self, pixel_values: torch.Tensor) -> dict:
         outputs = self._model(pixel_values=pixel_values)
