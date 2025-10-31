@@ -1,3 +1,4 @@
+# ===== src/distillation/trainer_codetr.py (Sửa lỗi cuối cùng: Lấy đúng feature map) =====
 import os
 import sys
 
@@ -57,8 +58,10 @@ class DETRTeacherWrapper(nn.Module):
     def forward_features(self, pixel_values: torch.Tensor) -> list[torch.Tensor]:
         b, _, h, w = pixel_values.shape
         pixel_mask = torch.ones((b, h, w), device=pixel_values.device, dtype=torch.bool)
+        # Backbone của Hugging Face DETR trả về một tuple (features, pos_encodings).
+        # Chúng ta chỉ cần lấy features ở vị trí đầu tiên [0].
         backbone_output = self._model.model.backbone(pixel_values, pixel_mask)
-        return list(backbone_output)
+        return backbone_output[0]
 
     def forward_preds(self, pixel_values: torch.Tensor) -> dict:
         outputs = self._model(pixel_values=pixel_values)
@@ -223,8 +226,8 @@ if __name__ == "__main__":
 
     try:
         cfg = {
-            "learning_rate": 5e-5, "epochs": 100, "batch_size_per_gpu": 4,
-            "num_workers": 2, "weight_decay": 1e-4, 
+            "learning_rate": 5e-5, "epochs": 100, "batch_size_per_gpu": 2,
+            "num_workers": 1, "weight_decay": 1e-4, 
             "teacher_model": "microsoft/conditional-detr-resnet-50",
             "train_images_dir": str(project_config.COCO_TRAIN_IMAGES), "val_images_dir": str(project_config.COCO_VAL_IMAGES),
             "train_ann_file": str(project_config.COCO_TRAIN_ANNOTATIONS), "val_ann_file": str(project_config.COCO_VAL_ANNOTATIONS),
