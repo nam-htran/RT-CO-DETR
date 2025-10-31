@@ -1,4 +1,4 @@
-# ===== src/distillation/trainer_codetr.py (Corrected Version) =====
+# ===== src/distillation/trainer_codetr.py (Corrected Version 2) =====
 import os
 import sys
 
@@ -58,8 +58,16 @@ class DETRTeacherWrapper(nn.Module):
         b, _, h, w = pixel_values.shape
         pixel_mask = torch.ones((b, h, w), device=pixel_values.device, dtype=torch.bool)
         backbone_output = self._model.model.backbone(pixel_values, pixel_mask)
-        # FIX: Directly access the .feature_maps attribute to get the list of tensors
-        return backbone_output.feature_maps
+        
+        # FIX: The backbone returns a tuple (features, pos_embeds).
+        # The 'features' item itself is a tuple of tensors. We extract it.
+        features = backbone_output[0]
+        
+        # The student model expects 3 feature maps. DETR's ResNet backbone outputs
+        # features from stages C3, C4, C5. We select the last 3 features to match.
+        if len(features) > 3:
+            return list(features[-3:])
+        return list(features)
 
     def forward_preds(self, pixel_values: torch.Tensor) -> dict:
         outputs = self._model(pixel_values=pixel_values)
