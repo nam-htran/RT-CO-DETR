@@ -62,8 +62,8 @@ class DETRTeacherWrapper(nn.Module):
         # Gọi backbone với cả pixel_values và pixel_mask
         backbone_output = self._model.model.backbone(pixel_values, pixel_mask)
         
-        # Lấy feature maps từ output
-        return backbone_output['feature_maps']
+        # Backbone trả về một tuple các feature map, chúng ta chuyển nó thành list
+        return list(backbone_output)
 
     def forward_preds(self, pixel_values: torch.Tensor) -> dict:
         outputs = self._model(pixel_values=pixel_values)
