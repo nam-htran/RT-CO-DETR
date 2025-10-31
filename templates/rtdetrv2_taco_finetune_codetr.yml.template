@@ -1,0 +1,64 @@
+__include__: [
+  '../dataset/coco_detection.yml',
+  '../runtime.yml',
+  './include/dataloader.yml',
+  './include/rtdetrv2_r50vd.yml',
+]
+
+output_dir: {OUTPUT_DIR}
+
+# --- Inherit the base RT-DETR-L architecture ---
+RTDETR:
+  backbone: PResNet
+
+PResNet:
+  depth: 50
+  variant: d
+  freeze_at: 0
+  return_idx: [1, 2, 3]
+  num_stages: 4
+  freeze_norm: True
+  pretrained: False # We load from a custom checkpoint, not ImageNet
+
+# --- Key fine-tuning parameters ---
+task: detection
+remap_mscoco_category: false
+tuning: '{TUNING_CHECKPOINT}' # This will be replaced by the path to the distilled weights
+compile: true
+epoches: 50
+num_classes: 60
+
+# --- Dataset Paths ---
+train_dataloader:
+  num_workers: 4
+  dataset:
+    type: CocoDetection
+    img_folder: {TRAIN_IMG_FOLDER}
+    ann_file: {TRAIN_ANN_FILE}
+
+val_dataloader:
+  num_workers: 4
+  dataset:
+    type: CocoDetection
+    img_folder: {VAL_IMG_FOLDER}
+    ann_file: {VAL_ANN_FILE}
+
+# --- Optimizer and LR Scheduler ---
+batch_size: 16
+
+optimizer:
+  type: AdamW
+  params:
+    - params: '^(?=.*backbone)'
+      lr: 0.00001  # Lower learning rate for the pre-trained backbone
+    - params: '^(?=.*encoder)'
+      lr: 0.00001  # Lower learning rate for the pre-trained encoder
+  lr: 0.0001       # Higher learning rate for the new/unfrozen parts (decoder)
+  weight_decay: 0.0001
+
+lr_scheduler:
+  type: MultiStepLR
+  milestones: [40]
+  gamma: 0.1
+
+checkpoint_freq: 5
