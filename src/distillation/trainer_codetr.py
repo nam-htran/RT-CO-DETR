@@ -1,12 +1,11 @@
-# ===== src/distillation/trainer_codetr.py (Definitive Final Version) =====
+# ===== src/distillation/trainer_codetr.py (Final Version with Non-Interactive WandB Login) =====
 import os
 import sys
 
 # --- CRITICAL FIX for DDP on Windows/Kaggle ---
-# This MUST be set before importing torch.
 if sys.platform == 'win32' or 'KAGGLE_KERNEL_RUN_TYPE' in os.environ:
     os.environ['USE_LIBUV'] = '0'
-# --------------------------------------------
+# -----------------------------------------------
 
 import time
 import torch
@@ -29,16 +28,18 @@ import config as project_config
 from src.distillation.dataset import CocoDetectionForDistill
 
 def _setup_ddp_if_needed():
-    """Initializes the DDP process group if called by torchrun."""
+    """Initializes DDP if called by torchrun."""
     if dist.is_available() and "WORLD_SIZE" in os.environ and int(os.environ["WORLD_SIZE"]) > 1:
         backend = 'gloo' if sys.platform == 'win32' else 'nccl'
         dist.init_process_group(backend=backend)
-        torch.cuda.set_device(int(os.environ["LOCAL_RANK"]))
         rank = int(os.environ["RANK"])
         world_size = int(os.environ["WORLD_SIZE"])
-        print(f"DDP Initialized on Rank {rank}/{world_size} with '{backend}' backend.")
+        torch.cuda.set_device(int(os.environ["LOCAL_RANK"]))
+        if rank == 0:
+            print(f"DDP Initialized with {world_size} processes using '{backend}' backend.")
         return rank, world_size
-    print("INFO: DDP environment not detected. Running in single-process mode.")
+    
+    print("INFO: DDP environment not detected. Running in single-GPU mode.")
     return 0, 1
 
 def _cleanup_ddp():
@@ -71,11 +72,24 @@ def main_training_function(rank, world_size, cfg):
     if is_main_process:
         timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M")
         run_name = f"distill_conditional_detr_{timestamp}"
+        
+        # --- THIS IS THE WANDB LOGIN FIX ---
         try:
-            wandb.login(key=os.getenv("WANDB_API_KEY"))
+            from kaggle_secrets import UserSecretsClient
+            user_secrets = UserSecretsClient()
+            wandb_key = user_secrets.get_secret("WANDB_API_KEY")
+            wandb.login(key=wandb_key)
+            print("Successfully logged into W&B using Kaggle Secret.")
+        except Exception as e:
+            print(f"Could not log into W&B using Kaggle Secrets. Error: {e}")
+            print("W&B logging will be disabled.")
+        # ------------------------------------
+
+        try:
             wandb.init(project=cfg["wandb_project"], config=cfg, name=run_name)
         except Exception as e:
-            print(f"W&B login failed: {e}. No remote logging.")
+            print(f"W&B init failed: {e}")
+        
         Path(cfg["best_weights_filename"]).parent.mkdir(parents=True, exist_ok=True)
     
     if world_size > 1: dist.barrier()
