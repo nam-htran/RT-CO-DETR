@@ -1,8 +1,8 @@
-# ===== src/distillation/trainer_codetr.py (Final Version with Non-Interactive WandB Login) =====
+# ===== src/distillation/trainer_codetr.py (Definitive Final Version) =====
 import os
 import sys
 
-# --- CRITICAL FIX for DDP on Windows/Kaggle ---
+# --- CRITICAL FIX for DDP on Windows/Kagle ---
 if sys.platform == 'win32' or 'KAGGLE_KERNEL_RUN_TYPE' in os.environ:
     os.environ['USE_LIBUV'] = '0'
 # -----------------------------------------------
@@ -28,7 +28,6 @@ import config as project_config
 from src.distillation.dataset import CocoDetectionForDistill
 
 def _setup_ddp_if_needed():
-    """Initializes DDP if called by torchrun."""
     if dist.is_available() and "WORLD_SIZE" in os.environ and int(os.environ["WORLD_SIZE"]) > 1:
         backend = 'gloo' if sys.platform == 'win32' else 'nccl'
         dist.init_process_group(backend=backend)
@@ -47,7 +46,6 @@ def _cleanup_ddp():
         dist.destroy_process_group()
 
 class DETRTeacherWrapper(nn.Module):
-    """Wrapper for the Conditional-DETR teacher model."""
     def __init__(self, model_name: str = "microsoft/conditional-detr-resnet-50"):
         super().__init__()
         rank = int(os.environ.get("RANK", 0))
@@ -73,17 +71,14 @@ def main_training_function(rank, world_size, cfg):
         timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M")
         run_name = f"distill_conditional_detr_{timestamp}"
         
-        # --- THIS IS THE WANDB LOGIN FIX ---
         try:
             from kaggle_secrets import UserSecretsClient
             user_secrets = UserSecretsClient()
             wandb_key = user_secrets.get_secret("WANDB_API_KEY")
             wandb.login(key=wandb_key)
             print("Successfully logged into W&B using Kaggle Secret.")
-        except Exception as e:
-            print(f"Could not log into W&B using Kaggle Secrets. Error: {e}")
-            print("W&B logging will be disabled.")
-        # ------------------------------------
+        except Exception:
+            print("Could not log into W&B using Kaggle Secrets. W&B logging will be disabled.")
 
         try:
             wandb.init(project=cfg["wandb_project"], config=cfg, name=run_name)
