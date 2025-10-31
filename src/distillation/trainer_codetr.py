@@ -267,8 +267,8 @@ if __name__ == "__main__":
 
     try:
         cfg = {
-            "learning_rate": 5e-5, "epochs": 2, "batch_size_per_gpu": 2,
-            "num_workers": 1, "weight_decay": 1e-4, 
+            "learning_rate": 5e-5, "epochs": 50, "batch_size_per_gpu": 4,
+            "num_workers": 4, "weight_decay": 1e-4, 
             "teacher_model": "microsoft/conditional-detr-resnet-50",
             "train_images_dir": str(project_config.COCO_TRAIN_IMAGES), "val_images_dir": str(project_config.COCO_VAL_IMAGES),
             "train_ann_file": str(project_config.COCO_TRAIN_ANNOTATIONS), "val_ann_file": str(project_config.COCO_VAL_ANNOTATIONS),
