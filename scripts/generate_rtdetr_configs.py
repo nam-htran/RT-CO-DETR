@@ -1,3 +1,4 @@
+# ===== scripts/generate_rtdetr_configs.py (Corrected Version) =====
 import sys
 from pathlib import Path
 import yaml
@@ -15,6 +16,7 @@ def _generate_config_file(template_filename: str, output_filename: Path, replace
         content = f.read()
 
     for key, value in replacements.items():
+        # Ensure paths are absolute and use forward slashes for cross-platform compatibility
         replacement_value = str(Path(value).absolute()).replace('\\', '/')
         content = content.replace(f"{{{key}}}", replacement_value)
 
@@ -34,24 +36,25 @@ def run_config_generation():
         "VAL_ANN_FILE": config.COCO_VAL_ANNOTATIONS,
     }
 
-    # Config for Co-DETR-distilled model
+    # Config for the distilled model
+    # FIX: Changed variable names to match those defined in config.py
     _generate_config_file(
-        "rtdetrv2_taco_finetune_codetr.yml.template",
-        config.RTDETR_FINETUNE_CONFIG_CODETR,
+        "rtdetrv2_taco_finetune_distilled.yml.template",  # Using a consistent template name
+        config.RTDETR_FINETUNE_CONFIG_DISTILLED,
         {
             **common_replacements,
-            "OUTPUT_DIR": config.FINETUNE_DISTILLED_OUTPUT_DIR / "rtdetrv2_finetune_taco_codetr_teacher",
-            "TUNING_CHECKPOINT": config.CODETR_BEST_WEIGHTS,
+            "OUTPUT_DIR": config.FINETUNE_DISTILLED_OUTPUT_DIR,
+            "TUNING_CHECKPOINT": config.DISTILLED_BEST_WEIGHTS,
         }
     )
     
-    # Config for Baseline model (no pre-distillation)
+    # Config for the Baseline model (no pre-distillation)
     _generate_config_file(
         "rtdetrv2_taco_finetune_baseline.yml.template",
         config.RTDETR_FINETUNE_CONFIG_BASELINE,
         {
             **common_replacements,
-            "OUTPUT_DIR": config.FINETUNE_BASELINE_OUTPUT_DIR / "rtdetrv2_finetune_taco_baseline",
+            "OUTPUT_DIR": config.FINETUNE_BASELINE_OUTPUT_DIR,
         }
     )
     print("--- Config generation complete. ---")
