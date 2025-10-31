@@ -2,7 +2,7 @@
 import os
 import sys
 
-# --- CRITICAL FIX for DDP on Windows/Kagge ---
+# --- CRITICAL FIX for DDP on Windows/Kaggle ---
 if sys.platform == 'win32' or 'KAGGLE_KERNEL_RUN_TYPE' in os.environ:
     os.environ['USE_LIBUV'] = '0'
 # -----------------------------------------------
@@ -13,11 +13,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import DataLoader
-
-# --- ĐÂY LÀ DÒNG SỬA LỖI ---
 from torchvision import transforms as T
-# -----------------------
-
 from tqdm import tqdm
 import wandb
 import datetime
@@ -158,8 +154,8 @@ def main_training_function(rank, world_size, cfg):
 
             loss_feat = sum(mse_loss_fn(projection_module[i](student_features[i]), F.interpolate(teacher_features[i], size=student_features[i].shape[-2:], mode="bilinear", align_corners=False)) for i in range(len(student_features)))
             
-            T = cfg['distill_temperature']
-            loss_cls = kld_loss_fn(F.log_softmax(student_preds['pred_logits']/T, -1), F.softmax(teacher_preds['pred_logits']/T, -1)) * (T*T)
+            temperature = cfg['distill_temperature']
+            loss_cls = kld_loss_fn(F.log_softmax(student_preds['pred_logits']/temperature, -1), F.softmax(teacher_preds['pred_logits']/temperature, -1)) * (temperature**2)
             loss_box = l1_loss_fn(student_preds['pred_boxes'], teacher_preds['pred_boxes'])
             
             total_loss = (cfg['loss_weights']['feat'] * loss_feat) + (cfg['loss_weights']['cls'] * loss_cls) + (cfg['loss_weights']['box'] * loss_box)
@@ -178,8 +174,9 @@ def main_training_function(rank, world_size, cfg):
                 student_preds = student_module(images)
                 student_features = student_module.encoder(student_module.backbone(images))
                 
+                temperature = cfg['distill_temperature']
                 loss_feat_val = sum(mse_loss_fn(projection_module[i](student_features[i]), F.interpolate(teacher_features[i], size=student_features[i].shape[-2:], mode="bilinear", align_corners=False)) for i in range(len(student_features)))
-                loss_cls_val = kld_loss_fn(F.log_softmax(student_preds['pred_logits']/T, -1), F.softmax(teacher_preds['pred_logits']/T, -1)) * (T*T)
+                loss_cls_val = kld_loss_fn(F.log_softmax(student_preds['pred_logits']/temperature, -1), F.softmax(teacher_preds['pred_logits']/temperature, -1)) * (temperature**2)
                 loss_box_val = l1_loss_fn(student_preds['pred_boxes'], teacher_preds['pred_boxes'])
                 total_loss_val = (cfg['loss_weights']['feat'] * loss_feat_val) + (cfg['loss_weights']['cls'] * loss_cls_val) + (cfg['loss_weights']['box'] * loss_box_val)
                 total_val_loss += total_loss_val.item()
