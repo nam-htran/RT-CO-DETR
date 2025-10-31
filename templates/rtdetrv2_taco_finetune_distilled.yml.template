@@ -18,13 +18,13 @@ PResNet:
   return_idx: [1, 2, 3]
   num_stages: 4
   freeze_norm: True
-  # For baseline, we start from the standard pre-trained weights
-  pretrained: True 
+  pretrained: False # We load from a custom checkpoint, not ImageNet
 
 # --- Key fine-tuning parameters ---
 task: detection
 remap_mscoco_category: false
-# The 'tuning' key is REMOVED for the baseline model
+# This line is ESSENTIAL for the distilled model to load the distilled weights
+tuning: '{TUNING_CHECKPOINT}' 
 compile: true
 epoches: 50
 num_classes: 60
