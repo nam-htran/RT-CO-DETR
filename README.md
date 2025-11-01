@@ -63,6 +63,7 @@ All models were evaluated on the TACO validation set. The benchmark was conducte
 ## 4. Methodology
 
 The project follows a three-stage pipeline: Data Preparation, Knowledge Distillation, and Comparative Fine-tuning.
+<img width="2776" height="2712" alt="Mermaid Chart - Create complex, visual diagrams with text -2025-11-01-072938" src="https://github.com/user-attachments/assets/b98318fd-2c66-4bac-a0e5-7399999e6f29" />
 
 
 ## 5. Project Structure
