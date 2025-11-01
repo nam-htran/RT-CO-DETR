@@ -14,7 +14,7 @@ from src.finetune.trainer_yolo import train_yolo_baseline
 
 def run_command(command: str, cwd: Path):
     """Helper function to run a shell command."""
-    print(f"\n{'='*30}\n🚀 Executing in '{cwd}':\n   $ {command}\n{'='*30}")
+    print(f"\n{'='*30}\n Executing in '{cwd}':\n   $ {command}\n{'='*30}")
     try:
         subprocess.run(command, shell=True, check=True, text=True, cwd=cwd)
     except subprocess.CalledProcessError as e:
@@ -24,11 +24,7 @@ def run_command(command: str, cwd: Path):
 def run_distillation():
     """STEP 2: Run knowledge distillation."""
     print("### STEP 2: Running Knowledge Distillation... ###")
-    # This filename must match your actual trainer script file
     script_path = str(config.SRC_DIR / "distillation/trainer_codetr.py") 
-    
-    # Use torchrun to correctly launch single or multi-GPU processes.
-    # The 'libuv' error is now handled inside the trainer script itself.
     command = f"torchrun --nproc_per_node={config.NUM_GPUS_PER_NODE} {script_path}"
     run_command(command, cwd=config.ROOT_DIR)
 
@@ -42,7 +38,6 @@ def run_finetuning():
     relative_config_distilled = config.RTDETR_FINETUNE_CONFIG_DISTILLED.relative_to(config.RTDETR_PYTORCH_DIR)
     relative_config_baseline = config.RTDETR_FINETUNE_CONFIG_BASELINE.relative_to(config.RTDETR_PYTORCH_DIR)
 
-    # Use torchrun for consistency
     launcher = f"torchrun --nproc_per_node={config.NUM_GPUS_PER_NODE}"
 
     print("\n### STEP 3.2: Fine-tuning RT-DETR (Distilled)... ###")
@@ -79,7 +74,7 @@ def main():
     if run_all or args.finetune:
         run_finetuning()
 
-    print("\n✅ All selected processes completed successfully.")
+    print("\nAll selected processes completed successfully.")
 
 if __name__ == "__main__":
     main()

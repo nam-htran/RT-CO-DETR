@@ -1,8 +1,6 @@
-# ===== src/distillation/trainer_codetr.py (Corrected Version 3) =====
 import os
 import sys
 
-# DDP Hotfix for Windows/Kaggle environments
 if sys.platform == 'win32' or 'KAGGLE_KERNEL_RUN_TYPE' in os.environ:
     os.environ['USE_LIBUV'] = '0'
 
