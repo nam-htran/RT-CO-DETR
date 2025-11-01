@@ -1,0 +1,4 @@
+,mAP50-95,mAP50,Speed (ms),Params (M),FLOPs (G)
+RT-DETR (Distilled),0.2610,0.3100,58.50,40.92,136.06
+RT-DETR (Baseline),0.2390,0.3000,59.68,40.92,136.06
+YOLOv11l (Baseline),0.2566,0.2960,30.87,25.36,87.53

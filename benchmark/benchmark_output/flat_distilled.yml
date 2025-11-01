@@ -1,0 +1,205 @@
+task: detection
+evaluator:
+  type: CocoEvaluator
+  iou_types:
+  - bbox
+num_classes: 60
+remap_mscoco_category: false
+train_dataloader:
+  type: DataLoader
+  dataset:
+    type: CocoDetection
+    img_folder: /kaggle/input/dsp-pre-final/processed_taco_coco/train2017
+    ann_file: /kaggle/input/dsp-pre-final/processed_taco_coco/annotations/instances_train2017.json
+    return_masks: false
+    transforms:
+      type: Compose
+      ops:
+      - type: RandomPhotometricDistort
+        p: 0.5
+      - type: RandomZoomOut
+        fill: 0
+      - type: RandomIoUCrop
+        p: 0.8
+      - type: SanitizeBoundingBoxes
+        min_size: 1
+      - type: RandomHorizontalFlip
+      - type: Resize
+        size:
+        - 640
+        - 640
+      - type: SanitizeBoundingBoxes
+        min_size: 1
+      - type: ConvertPILImage
+        dtype: float32
+        scale: true
+      - type: ConvertBoxes
+        fmt: cxcywh
+        normalize: true
+      policy:
+        name: stop_epoch
+        epoch: 71
+        ops:
+        - RandomPhotometricDistort
+        - RandomZoomOut
+        - RandomIoUCrop
+  shuffle: true
+  num_workers: 4
+  drop_last: true
+  collate_fn:
+    type: BatchImageCollateFuncion
+    scales:
+    - 480
+    - 512
+    - 544
+    - 576
+    - 608
+    - 640
+    - 640
+    - 640
+    - 672
+    - 704
+    - 736
+    - 768
+    - 800
+    stop_epoch: 71
+  total_batch_size: 16
+val_dataloader:
+  type: DataLoader
+  dataset:
+    type: CocoDetection
+    img_folder: /kaggle/input/dsp-pre-final/processed_taco_coco/val2017
+    ann_file: /kaggle/input/dsp-pre-final/processed_taco_coco/annotations/instances_val2017.json
+    return_masks: false
+    transforms:
+      type: Compose
+      ops:
+      - type: Resize
+        size:
+        - 640
+        - 640
+      - type: ConvertPILImage
+        dtype: float32
+        scale: true
+  shuffle: false
+  num_workers: 4
+  drop_last: false
+  collate_fn:
+    type: BatchImageCollateFuncion
+  total_batch_size: 32
+print_freq: 100
+output_dir: /kaggle/working/benchmark_output/temp_run_RT-DETR_(Distilled)
+checkpoint_freq: 5
+sync_bn: true
+find_unused_parameters: false
+use_amp: false
+scaler:
+  type: GradScaler
+  enabled: true
+use_ema: false
+ema:
+  type: ModelEMA
+  decay: 0.9999
+  warmups: 2000
+model: RTDETR
+criterion: RTDETRCriterionv2
+postprocessor: RTDETRPostProcessor
+use_focal_loss: true
+eval_spatial_size:
+- 640
+- 640
+RTDETR:
+  backbone: PResNet
+  encoder: HybridEncoder
+  decoder: RTDETRTransformerv2
+PResNet:
+  depth: 50
+  variant: d
+  freeze_at: 0
+  return_idx:
+  - 1
+  - 2
+  - 3
+  num_stages: 4
+  freeze_norm: true
+  pretrained: false
+HybridEncoder:
+  in_channels:
+  - 512
+  - 1024
+  - 2048
+  feat_strides:
+  - 8
+  - 16
+  - 32
+  hidden_dim: 256
+  use_encoder_idx:
+  - 2
+  num_encoder_layers: 1
+  nhead: 8
+  dim_feedforward: 1024
+  dropout: 0.0
+  enc_act: gelu
+  expansion: 1.0
+  depth_mult: 1
+  act: silu
+RTDETRTransformerv2:
+  feat_channels:
+  - 256
+  - 256
+  - 256
+  feat_strides:
+  - 8
+  - 16
+  - 32
+  hidden_dim: 256
+  num_levels: 3
+  num_layers: 6
+  num_queries: 300
+  num_denoising: 100
+  label_noise_ratio: 0.5
+  box_noise_scale: 1.0
+  eval_idx: -1
+  num_points:
+  - 4
+  - 4
+  - 4
+  cross_attn_method: default
+  query_select_method: default
+RTDETRPostProcessor:
+  num_top_queries: 300
+RTDETRCriterionv2:
+  weight_dict:
+    loss_vfl: 1
+    loss_bbox: 5
+    loss_giou: 2
+  losses:
+  - vfl
+  - boxes
+  alpha: 0.75
+  gamma: 2.0
+  matcher:
+    type: HungarianMatcher
+    weight_dict:
+      cost_class: 2
+      cost_bbox: 5
+      cost_giou: 2
+    alpha: 0.25
+    gamma: 2.0
+compile: true
+epoches: 50
+batch_size: 16
+optimizer:
+  type: AdamW
+  params:
+  - params: ^(?=.*backbone)
+    lr: 1.0e-05
+  - params: ^(?=.*encoder)
+    lr: 1.0e-05
+  lr: 0.0001
+  weight_decay: 0.0001
+lr_scheduler:
+  type: MultiStepLR
+  milestones:
+  - 40
+  gamma: 0.1
