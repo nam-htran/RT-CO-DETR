@@ -2,9 +2,12 @@
 
 ![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)
 ![PyTorch 2.0+](https://img.shields.io/badge/PyTorch-2.0+-ee4c2c.svg)
+![Kaggle](https://img.shields.io/badge/Kaggle-Notebook-blue.svg)
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
 
 This project enhances the performance of the real-time object detector **RT-DETR** on the **TACO (Trash Annotations in Context)** dataset by leveraging **Knowledge Distillation**. We use a powerful but slower teacher model, **Conditional DETR**, to guide the training of a faster student model, **RT-DETR-L**, significantly improving its accuracy without compromising its real-time inference speed.
+
+The entire training and benchmarking pipeline is designed to be executed within a **Kaggle Notebook** environment.
 
 ## 📋 Table of Contents
 
@@ -13,7 +16,7 @@ This project enhances the performance of the real-time object detector **RT-DETR
 3.  [Performance Benchmark](#3-performance-benchmark)
 4.  [Methodology](#4-methodology)
 5.  [Project Structure](#5-project-structure)
-6.  [Setup and Usage](#6-setup-and-usage)
+6.  [How to Reproduce (Kaggle Notebook)](#6-how-to-reproduce-kaggle-notebook)
 7.  [License](#7-license)
 8.  [Acknowledgements](#8-acknowledgements)
 
@@ -30,16 +33,14 @@ The final distilled model is benchmarked against a standard fine-tuned RT-DETR b
 ## 2. Key Features
 
 -   **Knowledge Distillation Pipeline:** Implements both feature-level and prediction-level distillation.
-    -   **Feature Distillation:** The student learns to mimic the feature maps from the teacher's ResNet-50 backbone using an MSE loss.
-    -   **Prediction Distillation:** The student learns the teacher's output distribution for both classification (using KL Divergence loss) and bounding box regression (using L1 loss).
 -   **Automated Training Orchestration:** A master script (`train.py`) manages the entire workflow, from data preparation to distillation and final fine-tuning experiments.
--   **Environment-Aware Configuration:** The central `config.py` file automatically detects whether the code is running in a local or Kaggle environment and adjusts data paths accordingly.
--   **Multi-GPU Support:** Leverages `torchrun` for efficient, distributed training on multiple GPUs.
--   **Comprehensive Benchmarking:** Compares three models (Distilled RT-DETR, Baseline RT-DETR, and Baseline YOLO) across accuracy (mAP), complexity (Parameters, FLOPs), and inference speed.
+-   **Kaggle-Optimized:** The entire workflow is designed to run seamlessly in Kaggle Notebooks, automatically handling data paths and dependencies.
+-   **Multi-GPU Support:** Leverages `torchrun` for efficient, distributed training.
+-   **Comprehensive Benchmarking:** A dedicated script within our Kaggle notebook compares models across accuracy (mAP), complexity (Parameters, FLOPs), and inference speed.
 
 ## 3. Performance Benchmark
 
-All models were evaluated on the TACO validation set. The benchmark was conducted on a **Tesla T4** GPU.
+All models were evaluated on the TACO validation set. The benchmark was conducted on a **Tesla T4** GPU within a Kaggle Notebook. The full analysis, including the generation of these results, can be found in the analysis notebook mentioned in the "How to Reproduce" section.
 
 | Model | mAP@.50-.95 | mAP@.50 | Speed (ms) | Params (M) | FLOPs (G) |
 | :--- | :---: | :---: | :---: | :---: | :---: |
@@ -50,19 +51,19 @@ All models were evaluated on the TACO validation set. The benchmark was conducte
 ### Analysis of Results
 
 1.  **Knowledge Distillation is Highly Effective:**
-    -   The **Distilled RT-DETR** significantly outperforms the **Baseline RT-DETR** in accuracy, achieving a **9.2% relative improvement** in mAP@.50-.95 (`0.2610` vs. `0.2390`).
-    -   This accuracy gain comes at **no extra cost** to inference speed or model complexity, as both RT-DETR models have virtually identical parameters and FLOPs. This is the core success of the project.
+    -   The **Distilled RT-DETR** significantly outperforms the **Baseline RT-DETR**, achieving a **9.2% relative improvement** in mAP@.50-.95.
+    -   This accuracy gain comes at **no extra cost** to inference speed or model complexity. This is the core success of the project.
 
 2.  **Comparison with a Strong Baseline (YOLO):**
-    -   The **YOLOv11l** model is significantly faster and more efficient (2x faster, ~62% of the parameters). This highlights YOLO's strength in speed-optimized architectures.
-    -   However, the **Distilled RT-DETR** achieves **higher accuracy** across both mAP metrics, demonstrating its superior capability in learning complex representations, especially after being guided by a powerful teacher.
+    -   The **YOLOv11l** model is significantly faster and more efficient (2x faster, ~62% of the parameters).
+    -   However, the **Distilled RT-DETR** achieves **higher accuracy** across both mAP metrics, demonstrating its superior capability in learning complex representations after being guided by a powerful teacher.
 
-**Conclusion:** The project successfully demonstrates that knowledge distillation is a powerful technique to enhance a real-time detector like RT-DETR, allowing it to achieve state-of-the-art accuracy that can even surpass other highly optimized models like YOLO, albeit with a trade-off in inference speed.
+**Conclusion:** Knowledge distillation is a powerful technique to enhance a real-time detector like RT-DETR, allowing it to achieve state-of-the-art accuracy that can even surpass other highly optimized models like YOLO, albeit with a trade-off in inference speed.
 
 ## 4. Methodology
 
 The project follows a three-stage pipeline: Data Preparation, Knowledge Distillation, and Comparative Fine-tuning.
-<img width="2776" height="2712" alt="Mermaid Chart - Create complex, visual diagrams with text -2025-11-01-072938" src="https://github.com/user-attachments/assets/69c689b1-6f36-478b-b281-86a6acf72cb7" />
+
 
 ## 5. Project Structure
 
@@ -74,101 +75,43 @@ The codebase is organized into a modular and reusable structure.
 ├── train.py                # Master script to orchestrate the entire training pipeline
 ├── requirements.txt        # Project dependencies
 ├── scripts/                # Helper scripts for data preparation and config generation
-│   ├── convert_coco_to_yolo.py
-│   └── generate_rtdetr_configs.py
 ├── src/
 │   ├── distillation/       # Core logic for the knowledge distillation process
-│   │   ├── trainer_codetr.py # Main distillation training loop
-│   │   ├── models.py       # Teacher model wrapper
-│   │   └── dataset.py      # Custom dataset for distillation
 │   └── finetune/           # Scripts for fine-tuning baseline models
-│       ├── trainer_yolo.py
-│       └── ...
 ├── rtdetr/                 # Submodule containing the RT-DETR source code
 ├── templates/              # Template files for generating experiment configs
 └── output/                 # Default directory for all generated outputs
-    ├── DISTILL/            # Checkpoints from the distillation phase
-    ├── FINETUNE_BASELINE/  # Checkpoints for the baseline RT-DETR model
-    ├── FINETUNE_DISTILLED/ # Checkpoints for the distilled RT-DETR model
-    └── YOLO/               # Checkpoints and data for the YOLO model
 ```
 
-## 6. Setup and Usage
+## 6. How to Reproduce (Kaggle Notebook)
 
-### Prerequisites
+The entire analysis and benchmarking process is encapsulated in a single, self-contained Kaggle Notebook. This notebook uses the pre-trained models and datasets to generate the final results.
 
--   Python 3.11+
--   PyTorch 2.0+ and `torchvision`
--   Numpy < 2.0
--   Git
--   An NVIDIA GPU with CUDA for training
+### Step 1: Access the Analysis Notebook
 
-### Step 1: Clone the Repository and Install Dependencies
+The notebook containing the complete benchmark code is located at:
+-   **`/kaggle/aftertrain-analysis-rt-codetr.ipynb`**
 
-```bash
-# Clone this repository
-git clone https://github.com/nam-htran/RT-CO-DETR.git
-cd RT-CO-DETR
+This notebook is the single source of truth for reproducing the results.
 
-# Install required packages
-pip install -r requirements.txt
-```
-The RT-DETR submodule will be automatically cloned by the training script if it's not found.
+### Step 2: Configure the Notebook Environment
 
-### Step 2: Prepare the Dataset
+When you open the notebook, ensure the following datasets are attached:
 
-Place your `processed_taco_coco` dataset according to the structure defined in `config.py`. For a local setup, the expected structure is:
+-   **TACO Dataset:** Attach the dataset containing the trash images and annotations. The expected input path is `/kaggle/input/dsp-pre-final`.
+-   **Pre-trained Models:** Attach the dataset containing the final trained checkpoints and config templates. The expected input path is `/kaggle/input/rt-co-detr-trained`.
 
-```
-.
-├── data_input/
-│   └── processed_taco_coco/
-│       ├── train2017/
-│       ├── val2017/
-│       └── annotations/
-│           ├── instances_train2017.json
-│           └── instances_val2017.json
-└── ... (rest of the project files)
-```
-*Note: If running on Kaggle, the script automatically uses the `/kaggle/input/` path.*
+### Step 3: Run All Cells
 
-### Step 3: Run the Training Pipeline
+Execute all cells in the notebook sequentially from top to bottom. The notebook is designed to be fully automated:
+1.  It installs all necessary dependencies.
+2.  It clones the required `RT-CO-DETR` repository.
+3.  It runs the `final_benchmark.py` script, which:
+    -   Automatically locates pre-trained models and data.
+    -   Performs accuracy evaluation, complexity analysis, and speed measurement.
+4.  Finally, it generates and displays the summary table and comparison plot, which are also saved to the `/kaggle/working/benchmark_output/` directory.
 
-The `train.py` script orchestrates the entire process. You can run all steps at once or individually.
-
-#### Option A: Run the Full Pipeline (Recommended)
-
-This command will execute data preparation, knowledge distillation, and all fine-tuning experiments sequentially.
-
-```bash
-python train.py --all
-```
-
-#### Option B: Run Steps Individually
-
-This is useful for debugging or re-running specific parts of the pipeline.
-
-```bash
-# 1. Prepare data formats (creates YOLO data)
-python train.py --prepare-data
-
-# 2. Run knowledge distillation to create the distilled checkpoint
-# This step is GPU-intensive and may take a long time.
-python train.py --distill
-
-# 3. Run fine-tuning experiments for all three models
-python train.py --finetune
-```
-
-### Step 4: Run the Final Benchmark
-
-After all models have been trained, a `best.pth` (or `best.pt`) checkpoint will be available in their respective `output/` subdirectories. Run the benchmark script to generate the final comparison table and plot.
-
-```bash
-# (This script is provided in the repository)
-python final_benchmark.py
-```
-The results will be printed to the console and saved to `benchmark_output/benchmark_summary.csv` and `benchmark_output/benchmark_plot.png`.
+By following these steps, you can precisely replicate the benchmark results presented in this document.
 
 ## 7. License
 
@@ -180,4 +123,3 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 -   The teacher model, [Conditional-DETR](https://huggingface.co/microsoft/conditional-detr-resnet-50), is provided by Microsoft via the Hugging Face Hub.
 -   The baseline model, [YOLO](https://github.com/ultralytics/ultralytics), is provided by Ultralytics.
 -   The [TACO dataset](https://tacodataset.org/) is the foundation for this trash detection task.
-```
