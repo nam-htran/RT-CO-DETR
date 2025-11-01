@@ -191,4 +191,4 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 -   The teacher model, [Conditional-DETR](https://huggingface.co/microsoft/conditional-detr-resnet-50), is provided by Microsoft via the Hugging Face Hub.
 -   The baseline model, [YOLO](https://github.com/ultralytics/ultralytics), is provided by Ultralytics.
 -   The [TACO dataset](https://tacodataset.org/) is the foundation for this trash detection task.
-```
+
