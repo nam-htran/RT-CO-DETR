@@ -97,7 +97,7 @@ from src.finetune.trainer_yolo import train_yolo_baseline
 
 def run_command(command: str, cwd: Path):
     """Helper function to run a shell command."""
-    print(f"\n{'='*30}\n🚀 Executing in '{cwd}':\n   $ {command}\n{'='*30}")
+    print(f"\n{'='*30}\n Executing in '{cwd}':\n   $ {command}\n{'='*30}")
     try:
         subprocess.run(command, shell=True, check=True, text=True, cwd=cwd)
     except subprocess.CalledProcessError as e:
@@ -107,11 +107,7 @@ def run_command(command: str, cwd: Path):
 def run_distillation():
     """STEP 2: Run knowledge distillation."""
     print("### STEP 2: Running Knowledge Distillation... ###")
-    # This filename must match your actual trainer script file
     script_path = str(config.SRC_DIR / "distillation/trainer_codetr.py") 
-    
-    # Use torchrun to correctly launch single or multi-GPU processes.
-    # The 'libuv' error is now handled inside the trainer script itself.
     command = f"torchrun --nproc_per_node={config.NUM_GPUS_PER_NODE} {script_path}"
     run_command(command, cwd=config.ROOT_DIR)
 
@@ -125,7 +121,6 @@ def run_finetuning():
     relative_config_distilled = config.RTDETR_FINETUNE_CONFIG_DISTILLED.relative_to(config.RTDETR_PYTORCH_DIR)
     relative_config_baseline = config.RTDETR_FINETUNE_CONFIG_BASELINE.relative_to(config.RTDETR_PYTORCH_DIR)
 
-    # Use torchrun for consistency
     launcher = f"torchrun --nproc_per_node={config.NUM_GPUS_PER_NODE}"
 
     print("\n### STEP 3.2: Fine-tuning RT-DETR (Distilled)... ###")
@@ -162,7 +157,7 @@ def main():
     if run_all or args.finetune:
         run_finetuning()
 
-    print("\n✅ All selected processes completed successfully.")
+    print("\nAll selected processes completed successfully.")
 
 if __name__ == "__main__":
     main()
@@ -9878,65 +9873,11 @@ def run_conversion():
 if __name__ == '__main__':
     run_conversion()
 
-===== .\scripts\convert_lightly_checkpoint.py =====
-import torch
-import os
-import sys
-from pathlib import Path
-
-sys.path.append(str(Path(__file__).resolve().parent.parent))
-import config
-
-def run_conversion():
-    print(f"Searching for checkpoints in: {config.VIT_DISTILL_CHECKPOINTS_DIR}")
-    
-    ckpt_files = list(config.VIT_DISTILL_CHECKPOINTS_DIR.glob('*.ckpt'))
-    if not ckpt_files:
-        raise FileNotFoundError(
-            f"No .ckpt files found in '{config.VIT_DISTILL_CHECKPOINTS_DIR}'. "
-            "Please ensure ViT distillation has been run successfully."
-        )
-        
-    latest_checkpoint_path = max(ckpt_files, key=os.path.getctime)
-    print(f"Found latest checkpoint: {latest_checkpoint_path}")
-
-    lightly_checkpoint = torch.load(latest_checkpoint_path, map_location='cpu')
-    original_state_dict = lightly_checkpoint['state_dict']
-
-    PREFIX_TO_REMOVE = "student_embedding_model.wrapped_model."
-    clean_state_dict = {}
-    
-    print("Converting state dictionary keys...")
-    for key, value in original_state_dict.items():
-        if key.startswith(PREFIX_TO_REMOVE):
-            temp_key = key[len(PREFIX_TO_REMOVE):]
-            if temp_key.startswith('_backbone') or temp_key.startswith('_encoder'):
-                new_key = temp_key.lstrip('_')
-                clean_state_dict[new_key] = value
-
-    if not clean_state_dict:
-        raise ValueError(
-            "Could not extract any valid keys from the checkpoint. "
-            "Please check the model structure and the prefix to remove."
-        )
-
-    final_structure = {'model': clean_state_dict}
-    
-    config.VIT_CONVERTED_WEIGHTS.parent.mkdir(exist_ok=True, parents=True)
-    print(f"Saving converted weights to: {config.VIT_CONVERTED_WEIGHTS}")
-    torch.save(final_structure, config.VIT_CONVERTED_WEIGHTS)
-    print("Checkpoint conversion successful!")
-
-if __name__ == '__main__':
-    run_conversion()
-
 ===== .\scripts\generate_rtdetr_configs.py =====
-# ===== scripts/generate_rtdetr_configs.py (Corrected Version) =====
 import sys
 from pathlib import Path
 import yaml
 
-# Add project root to path to import config
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 import config
 
@@ -9949,7 +9890,6 @@ def _generate_config_file(template_filename: str, output_filename: Path, replace
         content = f.read()
 
     for key, value in replacements.items():
-        # Ensure paths are absolute and use forward slashes for cross-platform compatibility
         replacement_value = str(Path(value).absolute()).replace('\\', '/')
         content = content.replace(f"{{{key}}}", replacement_value)
 
@@ -9959,7 +9899,6 @@ def _generate_config_file(template_filename: str, output_filename: Path, replace
     print(f"Generated config file: {output_filename}")
 
 def run_config_generation():
-    """Generates all necessary RT-DETR config files for fine-tuning."""
     print("--- Generating RT-DETR config files from templates... ---")
     
     common_replacements = {
@@ -9969,10 +9908,8 @@ def run_config_generation():
         "VAL_ANN_FILE": config.COCO_VAL_ANNOTATIONS,
     }
 
-    # Config for the distilled model
-    # FIX: Changed variable names to match those defined in config.py
     _generate_config_file(
-        "rtdetrv2_taco_finetune_distilled.yml.template",  # Using a consistent template name
+        "rtdetrv2_taco_finetune_distilled.yml.template", 
         config.RTDETR_FINETUNE_CONFIG_DISTILLED,
         {
             **common_replacements,
@@ -9981,7 +9918,6 @@ def run_config_generation():
         }
     )
     
-    # Config for the Baseline model (no pre-distillation)
     _generate_config_file(
         "rtdetrv2_taco_finetune_baseline.yml.template",
         config.RTDETR_FINETUNE_CONFIG_BASELINE,
@@ -10031,7 +9967,6 @@ class CocoDetectionForDistill(torch.utils.data.Dataset):
 
 
 ===== .\src\distillation\models.py =====
-# ===== src/distillation/models.py =====
 import os
 import torch
 import torch.nn as nn
@@ -10076,11 +10011,9 @@ class HuggingFaceTeacherWrapper(nn.Module):
             return [outputs.hidden_states[i] for i in [2, 3, 4]]
 
 ===== .\src\distillation\trainer_codetr.py =====
-# ===== src/distillation/trainer_codetr.py (Corrected Version 3) =====
 import os
 import sys
 
-# DDP Hotfix for Windows/Kaggle environments
 if sys.platform == 'win32' or 'KAGGLE_KERNEL_RUN_TYPE' in os.environ:
     os.environ['USE_LIBUV'] = '0'
 
@@ -10466,9 +10399,482 @@ if __name__ == '__main__':
 ./
     .env.example
     config.py
+    README.md
     requirements.txt
     setup.py
     train.py
+    benchmark/
+        aftertrain-analysis-rt-codetr.ipynb
+        benchmark_output/
+            benchmark_plot.png
+            benchmark_summary.csv
+            flat_baseline.yml
+            flat_distilled.yml
+            taco_yolo_for_eval/
+                taco_yolo.yaml
+                images/
+                    val/
+                        1004.jpg
+                        1014.jpg
+                        1016.jpg
+                        1020.jpg
+                        1027.jpg
+                        103.jpg
+                        1033.jpg
+                        1037.jpg
+                        1041.jpg
+                        1053.jpg
+                        1055.jpg
+                        1067.jpg
+                        1069.jpg
+                        107.jpg
+                        1078.jpg
+                        1087.jpg
+                        1089.jpg
+                        1092.jpg
+                        1093.jpg
+                        11.jpg
+                        1101.jpg
+                        1107.jpg
+                        1124.jpg
+                        1147.jpg
+                        1160.jpg
+                        1166.jpg
+                        1172.jpg
+                        1174.jpg
+                        1175.jpg
+                        1177.jpg
+                        1185.jpg
+                        1186.jpg
+                        1187.jpg
+                        1191.jpg
+                        1203.jpg
+                        1209.jpg
+                        1213.jpg
+                        1237.jpg
+                        1267.jpg
+                        1273.jpg
+                        1275.jpg
+                        1279.jpg
+                        1284.jpg
+                        1298.jpg
+                        1301.jpg
+                        1311.jpg
+                        1314.jpg
+                        1318.jpg
+                        1326.jpg
+                        1327.jpg
+                        1328.jpg
+                        1332.jpg
+                        1345.jpg
+                        1349.jpg
+                        135.jpg
+                        1363.jpg
+                        1368.jpg
+                        1382.jpg
+                        1384.jpg
+                        1390.jpg
+                        1399.jpg
+                        14.jpg
+                        1403.jpg
+                        1404.jpg
+                        1408.jpg
+                        1412.jpg
+                        1415.jpg
+                        1418.jpg
+                        1420.jpg
+                        1429.jpg
+                        1430.jpg
+                        1431.jpg
+                        1432.jpg
+                        1439.jpg
+                        1442.jpg
+                        1452.jpg
+                        1472.jpg
+                        1477.jpg
+                        1488.jpg
+                        1490.jpg
+                        1492.jpg
+                        157.jpg
+                        161.jpg
+                        178.jpg
+                        183.jpg
+                        19.jpg
+                        190.jpg
+                        193.jpg
+                        196.jpg
+                        198.jpg
+                        2.jpg
+                        202.jpg
+                        204.jpg
+                        21.jpg
+                        210.jpg
+                        215.jpg
+                        218.jpg
+                        22.jpg
+                        23.jpg
+                        232.jpg
+                        236.jpg
+                        243.jpg
+                        246.jpg
+                        251.jpg
+                        256.jpg
+                        263.jpg
+                        27.jpg
+                        286.jpg
+                        289.jpg
+                        293.jpg
+                        294.jpg
+                        297.jpg
+                        312.jpg
+                        319.jpg
+                        324.jpg
+                        328.jpg
+                        343.jpg
+                        344.jpg
+                        346.jpg
+                        349.jpg
+                        356.jpg
+                        357.jpg
+                        361.jpg
+                        362.jpg
+                        37.jpg
+                        39.jpg
+                        391.jpg
+                        392.jpg
+                        403.jpg
+                        428.jpg
+                        441.jpg
+                        447.jpg
+                        45.jpg
+                        453.jpg
+                        460.jpg
+                        47.jpg
+                        478.jpg
+                        482.jpg
+                        492.jpg
+                        506.jpg
+                        509.jpg
+                        51.jpg
+                        510.jpg
+                        511.jpg
+                        514.jpg
+                        515.jpg
+                        521.jpg
+                        523.jpg
+                        531.jpg
+                        532.jpg
+                        542.jpg
+                        559.jpg
+                        570.jpg
+                        577.jpg
+                        578.jpg
+                        581.jpg
+                        587.jpg
+                        6.jpg
+                        609.jpg
+                        61.jpg
+                        610.jpg
+                        618.jpg
+                        623.jpg
+                        625.jpg
+                        626.jpg
+                        63.jpg
+                        635.jpg
+                        64.jpg
+                        645.jpg
+                        648.jpg
+                        654.jpg
+                        657.jpg
+                        658.jpg
+                        660.jpg
+                        661.jpg
+                        667.jpg
+                        674.jpg
+                        675.jpg
+                        684.jpg
+                        70.jpg
+                        717.jpg
+                        723.jpg
+                        724.jpg
+                        73.jpg
+                        730.jpg
+                        741.jpg
+                        747.jpg
+                        749.jpg
+                        76.jpg
+                        769.jpg
+                        771.jpg
+                        778.jpg
+                        789.jpg
+                        790.jpg
+                        80.jpg
+                        819.jpg
+                        834.jpg
+                        839.jpg
+                        844.jpg
+                        850.jpg
+                        857.jpg
+                        87.jpg
+                        878.jpg
+                        887.jpg
+                        89.jpg
+                        890.jpg
+                        903.jpg
+                        908.jpg
+                        912.jpg
+                        918.jpg
+                        919.jpg
+                        92.jpg
+                        920.jpg
+                        924.jpg
+                        925.jpg
+                        933.jpg
+                        942.jpg
+                        953.jpg
+                        957.jpg
+                        97.jpg
+                        978.jpg
+                        985.jpg
+                        987.jpg
+                        995.jpg
+                        999.jpg
+                labels/
+                    val.cache
+                    val/
+                        1004.txt
+                        1014.txt
+                        1016.txt
+                        1020.txt
+                        1027.txt
+                        103.txt
+                        1033.txt
+                        1037.txt
+                        1041.txt
+                        1053.txt
+                        1055.txt
+                        1067.txt
+                        1069.txt
+                        107.txt
+                        1078.txt
+                        1087.txt
+                        1089.txt
+                        1092.txt
+                        1093.txt
+                        11.txt
+                        1101.txt
+                        1107.txt
+                        1124.txt
+                        1147.txt
+                        1160.txt
+                        1166.txt
+                        1172.txt
+                        1174.txt
+                        1175.txt
+                        1177.txt
+                        1185.txt
+                        1186.txt
+                        1187.txt
+                        1191.txt
+                        1203.txt
+                        1209.txt
+                        1213.txt
+                        1237.txt
+                        1267.txt
+                        1273.txt
+                        1275.txt
+                        1279.txt
+                        1284.txt
+                        1298.txt
+                        1301.txt
+                        1311.txt
+                        1314.txt
+                        1318.txt
+                        1326.txt
+                        1327.txt
+                        1328.txt
+                        1332.txt
+                        1345.txt
+                        1349.txt
+                        135.txt
+                        1363.txt
+                        1368.txt
+                        1382.txt
+                        1384.txt
+                        1390.txt
+                        1399.txt
+                        14.txt
+                        1403.txt
+                        1404.txt
+                        1408.txt
+                        1412.txt
+                        1415.txt
+                        1418.txt
+                        1420.txt
+                        1429.txt
+                        1430.txt
+                        1431.txt
+                        1432.txt
+                        1439.txt
+                        1442.txt
+                        1452.txt
+                        1472.txt
+                        1477.txt
+                        1488.txt
+                        1490.txt
+                        1492.txt
+                        157.txt
+                        161.txt
+                        178.txt
+                        183.txt
+                        19.txt
+                        190.txt
+                        193.txt
+                        196.txt
+                        198.txt
+                        2.txt
+                        202.txt
+                        204.txt
+                        21.txt
+                        210.txt
+                        215.txt
+                        218.txt
+                        22.txt
+                        23.txt
+                        232.txt
+                        236.txt
+                        243.txt
+                        246.txt
+                        251.txt
+                        256.txt
+                        263.txt
+                        27.txt
+                        286.txt
+                        289.txt
+                        293.txt
+                        294.txt
+                        297.txt
+                        312.txt
+                        319.txt
+                        324.txt
+                        328.txt
+                        343.txt
+                        344.txt
+                        346.txt
+                        349.txt
+                        356.txt
+                        357.txt
+                        361.txt
+                        362.txt
+                        37.txt
+                        39.txt
+                        391.txt
+                        392.txt
+                        403.txt
+                        428.txt
+                        441.txt
+                        447.txt
+                        45.txt
+                        453.txt
+                        460.txt
+                        47.txt
+                        478.txt
+                        482.txt
+                        492.txt
+                        506.txt
+                        509.txt
+                        51.txt
+                        510.txt
+                        511.txt
+                        514.txt
+                        515.txt
+                        521.txt
+                        523.txt
+                        531.txt
+                        532.txt
+                        542.txt
+                        559.txt
+                        570.txt
+                        577.txt
+                        578.txt
+                        581.txt
+                        587.txt
+                        6.txt
+                        609.txt
+                        61.txt
+                        610.txt
+                        618.txt
+                        623.txt
+                        625.txt
+                        626.txt
+                        63.txt
+                        635.txt
+                        64.txt
+                        645.txt
+                        648.txt
+                        654.txt
+                        657.txt
+                        658.txt
+                        660.txt
+                        661.txt
+                        667.txt
+                        674.txt
+                        675.txt
+                        684.txt
+                        70.txt
+                        717.txt
+                        723.txt
+                        724.txt
+                        73.txt
+                        730.txt
+                        741.txt
+                        747.txt
+                        749.txt
+                        76.txt
+                        769.txt
+                        771.txt
+                        778.txt
+                        789.txt
+                        790.txt
+                        80.txt
+                        819.txt
+                        834.txt
+                        839.txt
+                        844.txt
+                        850.txt
+                        857.txt
+                        87.txt
+                        878.txt
+                        887.txt
+                        89.txt
+                        890.txt
+                        903.txt
+                        908.txt
+                        912.txt
+                        918.txt
+                        919.txt
+                        92.txt
+                        920.txt
+                        924.txt
+                        925.txt
+                        933.txt
+                        942.txt
+                        953.txt
+                        957.txt
+                        97.txt
+                        978.txt
+                        985.txt
+                        987.txt
+                        995.txt
+                        999.txt
+            temp_run_RT-DETR_(Baseline)/
+                eval.pth
+                summary/
+                    events.out.tfevents.1761982073.c0e5116e2208.116.0
+            temp_run_RT-DETR_(Distilled)/
+                eval.pth
+                summary/
+                    events.out.tfevents.1761982044.c0e5116e2208.92.0
     data/
         taco.yaml
     output/
@@ -10629,7 +11035,6 @@ if __name__ == '__main__':
             train.py
     scripts/
         convert_coco_to_yolo.py
-        convert_lightly_checkpoint.py
         generate_rtdetr_configs.py
     src/
         distillation/

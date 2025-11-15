@@ -4,7 +4,7 @@ def save_all_source_code(output_path='utils/output.txt', excluded_dirs=None, exc
     if excluded_dirs is None:
         excluded_dirs = {
             '__pycache__', '_dataset', '_logs', '_model_trained', '_results',
-            'node_modules', '.next', '.git', '.venv', '.vscode', '.idea', 'dist', 'build', 'taco_yolo', 'data_input', 'wandb', 'LICENSE'
+            'node_modules', '.next', '.git', '.venv', '.vscode', '.idea', 'dist', 'build', 'taco_yolo', 'data_input', 'wandb', 'LICENSE',
         }
     if excluded_files is None:
         excluded_files = {
