@@ -7,7 +7,6 @@ __include__: [
 
 output_dir: {OUTPUT_DIR}
 
-# --- Inherit the base RT-DETR-L architecture ---
 RTDETR:
   backbone: PResNet
 
@@ -18,18 +17,15 @@ PResNet:
   return_idx: [1, 2, 3]
   num_stages: 4
   freeze_norm: True
-  pretrained: False # We load from a custom checkpoint, not ImageNet
+  pretrained: False
 
-# --- Key fine-tuning parameters ---
 task: detection
 remap_mscoco_category: false
-# This line is ESSENTIAL for the distilled model to load the distilled weights
 tuning: '{TUNING_CHECKPOINT}' 
 compile: true
 epoches: 50
 num_classes: 60
 
-# --- Dataset Paths ---
 train_dataloader:
   num_workers: 4
   dataset:
@@ -44,17 +40,16 @@ val_dataloader:
     img_folder: {VAL_IMG_FOLDER}
     ann_file: {VAL_ANN_FILE}
 
-# --- Optimizer and LR Scheduler ---
 batch_size: 16
 
 optimizer:
   type: AdamW
   params:
     - params: '^(?=.*backbone)'
-      lr: 0.00001  # Lower learning rate for the pre-trained backbone
+      lr: 0.00001
     - params: '^(?=.*encoder)'
-      lr: 0.00001  # Lower learning rate for the pre-trained encoder
-  lr: 0.0001       # Higher learning rate for the new/unfrozen parts (decoder)
+      lr: 0.00001
+  lr: 0.0001
   weight_decay: 0.0001
 
 lr_scheduler:
