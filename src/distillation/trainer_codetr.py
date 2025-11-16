@@ -162,16 +162,13 @@ def main_training_function(rank, world_size, cfg):
 
             loss_feat = sum(mse_loss_fn(projection_module[i](student_features[i]), F.interpolate(teacher_features[i], size=student_features[i].shape[-2:], mode="bilinear", align_corners=False)) for i in range(len(student_features)))
             
-            # --- FIX: Align the number of classes for KL Divergence Loss ---
             student_logits = student_preds['pred_logits']
             teacher_logits = teacher_preds['pred_logits']
             
-            # Get the number of classes from the smaller of the two logits tensors
             num_classes_student = student_logits.shape[-1]
             num_classes_teacher = teacher_logits.shape[-1]
             num_classes_to_distill = min(num_classes_student, num_classes_teacher)
             
-            # Slice both logits to the same size
             student_logits_sliced = student_logits[..., :num_classes_to_distill]
             teacher_logits_sliced = teacher_logits[..., :num_classes_to_distill]
 
@@ -180,7 +177,6 @@ def main_training_function(rank, world_size, cfg):
                 F.log_softmax(student_logits_sliced / temperature, dim=-1),
                 F.softmax(teacher_logits_sliced / temperature, dim=-1)
             ) * (temperature**2)
-            # --- END FIX ---
             
             loss_box = l1_loss_fn(student_preds['pred_boxes'], teacher_preds['pred_boxes'])
             
