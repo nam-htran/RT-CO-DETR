@@ -1,4 +1,3 @@
-# ===== src/distillation/dataset.py =====
 import os
 from PIL import Image
 import torch
@@ -23,7 +22,6 @@ class CocoDetectionForDistill(torch.utils.data.Dataset):
         if self.transforms is not None:
             img = self.transforms(img)
             
-        # Return a dummy label (0) as required by the DataLoader
         return img, 0
 
     def __len__(self):
